@@ -26,7 +26,6 @@
 #endif /* (CHUNKSIZE == 0) */
 
 /* Enternal Variables */
-extern UINT           *dist;
 extern ULONGLONG    pepCount;
 extern ULONGLONG  totalCount;
 extern PepSeqs        seqPep;
@@ -320,13 +319,14 @@ STATUS DSLIM_ConstructChunk(UINT threads, UINT chunk_number)
             FLOAT pepMass = 0.0;
             CHAR *seq = NULL;
             INT len = 0;
+            UINT pepID = LBE_RevDist(k);
 
 #ifdef VMODS
-            /* Check if dist[k] belongs to peps or mods */
-            if (dist[k] >= pepCount)
+            /* Check if pepID belongs to peps or mods */
+            if (pepID >= pepCount)
             {
                 /* Extract from Mods */
-                varEntry *entry = modEntries + (dist[k] - pepCount);
+                varEntry *entry = modEntries + (pepID - pepCount);
                 seq = &seqPep.seqs[seqPep.idx[entry->seqID]];
                 len = (INT)seqPep.idx[entry->seqID + 1] - (INT)seqPep.idx[entry->seqID];
 
@@ -340,9 +340,9 @@ STATUS DSLIM_ConstructChunk(UINT threads, UINT chunk_number)
 #endif /* VMODS */
             {
                 /* Extract from Peps */
-                pepEntry *entry = pepEntries + dist[k];
-                seq = &seqPep.seqs[seqPep.idx[dist[k]]];
-                len = (INT)seqPep.idx[dist[k] + 1] - (INT)seqPep.idx[dist[k]];
+                pepEntry *entry = pepEntries + pepID;
+                seq = &seqPep.seqs[seqPep.idx[pepID]];
+                len = (INT)seqPep.idx[pepID + 1] - (INT)seqPep.idx[pepID];
 
                 /* Generate the Theoretical Spectrum */
                 pepMass = UTILS_GenerateSpectrum(seq, len, Spec);

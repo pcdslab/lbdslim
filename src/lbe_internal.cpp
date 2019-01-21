@@ -406,6 +406,23 @@ STATUS LBE_Distribute(UINT threads, DistPolicy policy, UINT& slm_chunks)
 }
 
 /*
+ * FUNCTION: LBE_RevDist
+ *
+ * DESCRIPTION: Returns the actual peptide ID
+ *
+ * INPUT:
+ * @virtID : (Distributed) Virtual Peptide ID.
+ *
+ * OUTPUT:
+ * @realID: Actual SPI peptide ID
+ */
+UINT LBE_RevDist(UINT virtID)
+{
+    /* Return the actual peptide ID */
+    return dist[virtID];
+}
+
+/*
  * FUNCTION: LBE_CountPeps
  *
  * DESCRIPTION: Count peptides in FASTA and the

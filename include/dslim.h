@@ -23,6 +23,7 @@
 
 #include "common.h"
 #include "utils.h"
+#include "lbe.h"
 
 /* Macros for SLM bitmask operations */
 #define BYTE                               8
