@@ -58,11 +58,9 @@ The sample application shows the software pipeline for successfully incorporatin
     vModInfo.vmods[0].modMass = 15.997 * SCALE; // Mass of the specified modification, for above example: 15.997
     vModInfo.vmods[0].residues[0] = 'M'; // modified residues list (max 4 per mod type allowed), for above example M
     
-    < some code>
-    
-   /* Distribute peptides among cores */
-   status = LBE_Distribute(threads, _chunk, slm_chunks); // Use either _chunk, _cyclic or _random to specify the distribution policy
-
+    <some code>
+    /* Distribute peptides among cores */
+    status = LBE_Distribute(threads, _chunk, slm_chunks); // Use either _chunk, _cyclic or _random to specify the distribution policy
 
 # Building LBDSLIM Sample Application
 1. Open the Git Bash shell (Windows) or normal Terminal (Ubuntu).
