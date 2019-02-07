@@ -64,7 +64,7 @@ The sample application shows the software pipeline for successfully incorporatin
 
 # Building LBDSLIM Sample Application
 1. Open the Git Bash shell (Windows) or normal Terminal (Ubuntu).
-1. Navigate to SLM-Transform home directory /slmtransform/
+1. Navigate to LBDSLIM home directory /lbdslim/
 2. Execute the following command: `make`
 
 # Running LBDSLIM Sample Application
