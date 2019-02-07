@@ -78,5 +78,5 @@ The sample application shows the software pipeline for successfully incorporatin
 4. Please contact us if you experience any trouble or bugs in the software. Thanks. :)
 
 # Please cite our work
-For queries or questions about SLM-Transform, please contact: {fsaeed, mhaseeb}@fiu.edu. Thank you.
+For queries or questions about LBDSLIM, please contact: {fsaeed, mhaseeb}@fiu.edu. Thank you.
 
