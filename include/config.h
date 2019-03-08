@@ -24,16 +24,16 @@
 /* Contains MACROS that configure SLM Index build */
 
 /* Manually switch _OPENMP */
-//#undef _OPENMP
+#undef _OPENMP
 
 /* Define if OS == WINDOWS*/
-#define WINDOWS
+//#define WINDOWS
 
 /* Enable to show SLMIndex Benchmark information  */
 #undef BENCHMARK
 
 /* Number of b- and y-ions per indexed fragment   */
-#define F                        40
+#define F                        39
 
 /* Fragment mass tolerance in (Daltons * SCALE)   */
 #define dF                        5 // = 0.05Da

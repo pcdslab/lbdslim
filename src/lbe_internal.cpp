@@ -19,6 +19,7 @@
  */
 
 #include "lbe.h"
+#include <mpi.h>
 using namespace std;
 
 /* Global Variables */
@@ -32,7 +33,7 @@ vector<STRING> Seqs;
 
 /* External Variables */
 extern UINT       chunksize;
-extern UINT   lastchunksize;
+extern UINT    lastchunksize;
 extern UINT         nchunks;
 #ifdef VMODS
 extern varEntry *modEntries;
@@ -215,10 +216,8 @@ STATUS LBE_Initialize(UINT threads, STRING modconditions)
  * OUTPUT:
  * @status: Status of execution
  */
-STATUS LBE_Deinitialize(VOID)
+STATUS LBE_Deinitialize()
 {
-   (VOID) DSLIM_Deinitialize();
-
     /* Reset all counters */
     seqPep.AAs = 0;
     pepCount = 0;
@@ -268,46 +267,42 @@ STATUS LBE_Deinitialize(VOID)
  * OUTPUT:
  * @status: Status of execution
  */
-STATUS LBE_Distribute(UINT threads, DistPolicy policy, UINT& slm_chunks)
+STATUS LBE_Distribute(UINT myid, DistPolicy policy, UINT slm_chunks, ULONGLONG lseed = 0)
 {
     STATUS status = 0;
     UINT N = totalCount;
-    UINT p = threads;
+    UINT p = slm_chunks;
 
-    if ((N / p) > CHUNKSIZE)
+    chunksize = ((N % p) == 0) ? (N / p) : ((N + p) / p);
+
+    /* Calculate the chunksize */
+    if (myid != slm_chunks -1)
     {
-        /* Set the chunksize to max chunksize */
-        chunksize = CHUNKSIZE;
+        /* Calculate the size of last chunk */
+        UINT factor = N / chunksize;
 
-        /* Calculate the number of chunks */
-        nchunks = ((N % chunksize) == 0)?
-                   (N / chunksize)      :
-                   ((N / chunksize) + 1);
+        lastchunksize = ((N % chunksize) == 0)?
+                         chunksize            :
+                         N - (chunksize * factor);
     }
     else
     {
-            /* Calculate the chunksize */
-        chunksize = ((N % p) == 0)?
-                         (N/p)    :
-                         ((N+p)/p);
+        /* Calculate the size of last chunk */
+        UINT factor = N / chunksize;
 
-        /* Set the number of chunks to p */
-        nchunks = p;
+        lastchunksize = ((N % chunksize) == 0)?
+                         chunksize            :
+                         N - (chunksize * factor);
+
+        chunksize = lastchunksize;
     }
 
-    /* Calculate the size of last chunk */
-    UINT factor = N / chunksize;
-
-    lastchunksize = ((N % chunksize) == 0)?
-                     chunksize            :
-                     N - (chunksize * factor);
+    /* Set the number of chunks to p */
+    nchunks = p;
 
     if (policy != _cyclic)
     {
         /* Initialize the array with OpenMP */
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static)
-#endif /* _OPENMP */
         for (UINT k = 0; k < N; k++)
         {
             dist[k] = k;
@@ -320,17 +315,7 @@ STATUS LBE_Distribute(UINT threads, DistPolicy policy, UINT& slm_chunks)
         case _random:
         {
             /* Generate a random seed */
-            ULONGLONG seed = time(0);
-#ifdef _OPENMP
-            seed -= (seed % 997) * 72393;
-            seed += (seed % 93617) * 17329;
-            seed -= (seed % 2357) * 24178;
-            seed += (seed % 19487) * 3175753;
-#else
-            seed = ((seed % 371291) + 213) * 317753;
-#endif /* _OPENMP */
-
-            std::cout << "Random Sampling Seed:\t\t" << seed << std::endl;
+            ULONGLONG  seed = lseed;
 
             for (UINT chno = 0; chno < nchunks; chno++)
             {
@@ -343,7 +328,7 @@ STATUS LBE_Distribute(UINT threads, DistPolicy policy, UINT& slm_chunks)
             }
 
             /* Shuffle the global indices */
-            status = UTILS_ShuffleI(dist, N, (seed + time(0)) << (omp_get_num_threads()));
+            status = UTILS_ShuffleI(dist, N, (2*seed) << (slm_chunks));
 
             break;
         }
@@ -358,10 +343,7 @@ STATUS LBE_Distribute(UINT threads, DistPolicy policy, UINT& slm_chunks)
         {
             UINT i = 0;
 
-            /* Initialize the array with OpenMP */
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static)
-#endif /* _OPENMP */
+            /* Initialize the array */
             for (i = 0; i < lastchunksize * nchunks; i++)
             {
                 /* Compute positions */
@@ -372,9 +354,6 @@ STATUS LBE_Distribute(UINT threads, DistPolicy policy, UINT& slm_chunks)
             }
 
             /* Fill the remaining peptides in (nchunks-1) chunks */
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static)
-#endif /* _OPENMP */
             for (i = lastchunksize * nchunks; i < totalCount; i++)
             {
                 /* Compute positions */
@@ -394,12 +373,6 @@ STATUS LBE_Distribute(UINT threads, DistPolicy policy, UINT& slm_chunks)
             status = ERR_INVLD_PARAM;
             break;
         }
-    }
-
-    if (status == SLM_SUCCESS)
-    {
-        /* Return the number of chunks created */
-        slm_chunks = nchunks;
     }
 
     return status;
@@ -449,7 +422,7 @@ STATUS LBE_CountPeps(UINT threads, CHAR *filename, STRING modconditions)
     LBE_UNUSED_PARAM(modconditions);
 #endif /* VMODS */
 
-    /* Open file */
+    /* Open file as read only */
     ifstream file(filename);
 
     if (file.is_open())
@@ -491,7 +464,7 @@ STATUS LBE_CountPeps(UINT threads, CHAR *filename, STRING modconditions)
      * modification information */
     if (status == SLM_SUCCESS)
     {
-        modCount = MODS_ModCounter(threads, modconditions);
+        modCount = MODS_ModCounter(1, modconditions);
     }
 
 #endif /* VMODS */
@@ -502,10 +475,12 @@ STATUS LBE_CountPeps(UINT threads, CHAR *filename, STRING modconditions)
         /* Return the total count */
         totalCount = pepCount + modCount;
 
-        cout << "Number of Peptides   = \t\t" << pepCount << endl;
-        cout << "Number of Mods       = \t\t" << modCount << endl;
-        cout << "Distributed SPI Size = \t\t" << totalCount << endl << endl;
-
+        if (threads == 0)
+        {
+            cout << "Number of Peptides   = \t\t" << pepCount << endl;
+            cout << "Number of Mods       = \t\t" << modCount << endl;
+            cout << "Distributed SPI Size = \t\t" << totalCount << endl << endl;
+        }
         /* Close the file once done */
         file.close();
     }
@@ -521,7 +496,7 @@ STATUS LBE_CountPeps(UINT threads, CHAR *filename, STRING modconditions)
  * INPUT : none
  * OUTPUT: none
  */
-VOID LBE_PrintHeader(VOID)
+VOID LBE_PrintHeader()
 {
     cout << "\n"
             "*********************************"

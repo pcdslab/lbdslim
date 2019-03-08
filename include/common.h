@@ -34,10 +34,6 @@
 #include "config.h"
 #include "slmerr.h"
 
-#ifdef _OPENMP
-#include <omp.h>
-#endif
-
 /* Set/Get the bit for modification site in a peptide */
 #define MODSITE(x)                       (1 << (x))
 

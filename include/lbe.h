@@ -59,7 +59,7 @@ STATUS LBE_Initialize(UINT threads, STRING modconditions);
  * OUTPUT:
  * @status: Status of execution
  */
-STATUS LBE_Deinitialize(VOID);
+STATUS LBE_Deinitialize();
 
 /*
  * FUNCTION: LBE_Distribute
@@ -74,7 +74,7 @@ STATUS LBE_Deinitialize(VOID);
  * OUTPUT:
  * @status: Status of execution
  */
-STATUS LBE_Distribute(UINT threads, DistPolicy policy, UINT& slm_chunks);
+STATUS LBE_Distribute(UINT myid, DistPolicy policy, UINT slm_chunks, ULONGLONG lseed);
 
 /*
  * FUNCTION: LBE_RevDist
@@ -113,6 +113,6 @@ STATUS LBE_CountPeps(UINT threads, CHAR *filename, STRING modconditions);
  * INPUT : none
  * OUTPUT: none
  */
-VOID   LBE_PrintHeader(VOID);
+VOID   LBE_PrintHeader();
 
 #endif /* LBE_H_ */

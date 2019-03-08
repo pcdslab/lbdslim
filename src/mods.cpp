@@ -39,7 +39,7 @@ static LONGLONG count(STRING s, STRING conditions);
 static VOID MODS_ModList(STRING peptide, vector<INT> conditions,
                          INT total, varEntry container, INT letter,
                          bool novel, INT modsSeen);
-static VOID MODS_GenCombinations(VOID);
+static VOID MODS_GenCombinations();
 #endif /* VMODS */
 
 /*
@@ -51,7 +51,7 @@ static VOID MODS_GenCombinations(VOID);
  *
  * OUTPUT: none
  */
-static VOID MODS_GenCombinations(VOID)
+static VOID MODS_GenCombinations()
 {
     //run this at start of main to fill Comb with the proper values
     Comb[0][0] = 1;
@@ -325,22 +325,6 @@ LONGLONG MODS_ModCounter(UINT threads, STRING conditions)
     (VOID) MODS_GenCombinations();
 
     /* Parallel modcounter */
-#ifdef _OPENMP
-    LONGLONG t[threads];
-    std::memset(t, 0x0, threads * sizeof(LONGLONG));
-
-#pragma omp parallel for num_threads(threads) schedule(static, Seqs.size()/50)
-    for (UINT i = 0; i < Seqs.size(); i++)
-    {
-        t[omp_get_thread_num()] += count(Seqs.at(i), conditions) - 1;
-    }
-
-    /* Accumulate the counts */
-    for (UINT th = 0; th < threads; th++)
-    {
-        cumulative += t[th];
-    }
-#else
 
     LBE_UNUSED_PARAM(threads);
 
@@ -348,7 +332,6 @@ LONGLONG MODS_ModCounter(UINT threads, STRING conditions)
     {
         cumulative += count(Seqs.at(i), conditions) - 1;
     }
-#endif /* _OPENMP */
 
 #endif /* VMODS */
 

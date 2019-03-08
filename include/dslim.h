@@ -26,7 +26,6 @@
 #include "lbe.h"
 
 /* Macros for SLM bitmask operations */
-#define BYTE                               8
 #define BITNUM(z)                          ((z) % BYTE)
 #define IS_INIT(x,y)                       (((x)>>BITNUM(y)) & 0x1)
 #define INIT(x,y)                          (x | (1 << BITNUM(y)))
@@ -122,7 +121,7 @@ STATUS DSLIM_Analyze(UINT threads, DOUBLE &mean, DOUBLE &std);
  * OUTPUT:
  * @status: Status of execution
  */
-STATUS DSLIM_Deinitialize(VOID);
+STATUS DSLIM_Deinitialize();
 
 /* FUNCTION: DSLIM_QuerySpectrum
  *
@@ -138,6 +137,6 @@ STATUS DSLIM_Deinitialize(VOID);
  * OUTPUT:
  * @status: Status of execution
  */
-STATUS DSLIM_QuerySpectrum(UINT *QA, UINT len, ULONGLONG *Matches, UINT threads);
+STATUS DSLIM_QuerySpectrum(UINT *QA, UINT len, ULONGLONG &Matches, UINT threads);
 
 #endif /* DSLIM_H_ */

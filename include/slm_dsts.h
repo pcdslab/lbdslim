@@ -37,9 +37,9 @@ typedef enum _DistPolicy
 
 typedef struct _SLM_varAA
 {
-    AA     residues[4]   = ""; /* Modified AA residues in this modification - Upto 4 */
-    UINT  modMass         = 0; /* Scaled mass of the modification                    */
-    USHORT aa_per_peptide = 0; /* Allowed modified residues per peptide sequence     */
+    AA     residues[4]  ; /* Modified AA residues in this modification - Upto 4 */
+    UINT  modMass         ; /* Scaled mass of the modification                    */
+    USHORT aa_per_peptide ; /* Allowed modified residues per peptide sequence     */
 
     _SLM_varAA& operator=(const _SLM_varAA& rhs)
     {
@@ -62,8 +62,8 @@ typedef struct _SLM_varAA
 
 typedef struct _SLM_Mods
 {
-    USHORT       vmods_per_pep = 0; /* Total allowed modified residues per sequence */
-    USHORT            num_vars = 0; /* Number of types of modifications added to index - Max: 7 */
+    USHORT       vmods_per_pep ; /* Total allowed modified residues per sequence */
+    USHORT            num_vars ; /* Number of types of modifications added to index - Max: 7 */
     SLM_varAA vmods[MAX_MOD_TYPES]; /* Information for each modification added to index */
 
     /* Overload = operator */
@@ -95,8 +95,8 @@ typedef struct _pepSeq
 
 typedef struct _modAA
 {
-    ULONG  sites = 0x0; /* maxlen(pep) = 60AA + 2 bits (termini mods)      */
-    UINT  modNum = 0x0; /* 4 bits per mods num, Max 8 mods allowed per pep */
+    ULONG  sites ; /* maxlen(pep) = 60AA + 2 bits (termini mods)      */
+    UINT  modNum ; /* 4 bits per mods num, Max 8 mods allowed per pep */
 
     /* Overload = operator */
     _modAA& operator=(const _modAA& rhs)
@@ -152,21 +152,20 @@ typedef struct _varEntry
 /************************* SLM Index DSTs ************************/
 typedef struct _SLMchunk
 {
-    UINT    *iA = NULL; /* Ions Array (iA)   */
-    UINT    *bA = NULL; /* Bucket Array (bA) */
-    UCHAR   *sC = NULL; /* Scorecard (SC)    */
+    UINT    *iA ; /* Ions Array (iA)   */
+    UINT    *bA ; /* Bucket Array (bA) */
+    UCHAR   *sC ; /* Scorecard (SC)    */
 #ifdef FUTURE
-    UCHAR *bits = NULL; /* Scorecard bits    */
+    UCHAR *bits ; /* Scorecard bits    */
 #endif /* FUTURE */
 } SLMchunk;
 
 typedef struct _SLMindex
 {
-    UINT       nPepChunks =    0; /* Number of pep chunks         */
-    UINT       nModChunks =    0; /* Number of mod chunks         */
-    UINT          nChunks =    0; /* Total Number of chunks       */
-    SLMchunk   *pepChunks = NULL; /* Chunks for normal peptides   */
-    SLMchunk   *modChunks = NULL; /* Chunks for modified peptides */
+    UINT       nPepChunks ; /* Number of pep chunks         */
+    UINT       nModChunks ; /* Number of mod chunks         */
+    UINT          nChunks ; /* Total Number of chunks       */
+    SLMchunk           pepChunks; /* Chunks for normal peptides   */
 } SLMindex;
 
 
@@ -174,7 +173,7 @@ typedef struct _SLMindex
 typedef struct _Query
 {
     /* Raw chosen fragments/peaks from the input MS/MS spectrum   */
-    PEAK Peaks[QALEN] = {0};
+    PEAK Peaks[QALEN] ;
 
 /* HM: Enable if intensity information is also required in future */
 #if (defined(REQUIRE_INTENSITY))

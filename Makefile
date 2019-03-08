@@ -1,8 +1,16 @@
 BUILD_MODE = RELEASE
-OPENMP = YES
+OPENMP = NO
 JOBS=1
-CXXFLAGS = -Wall -fmessage-length=0 -std=c++11
-LNKFLAGS = 
+CXXFLAGS = -Wall -static -fmessage-length=0 -std=gnu++0x
+LNKFLAGS = -Wl,--wrap,memcpy
+
+# Change CXX to MPIC++
+ifneq ($(OS),Windows_NT)
+	CXX:= mpic++
+endif
+
+# Needs gperftools to be installed and configured before use
+PROFILE = NO
 
 PROJECT_ROOT = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 SRC = $(PROJECT_ROOT)/src
@@ -10,12 +18,17 @@ MSTOOLKIT = $(PROJECT_ROOT)/mstoolkit
 
 DEPS = src/dslim_query.cpp src/dslim.cpp src/lbe.cpp src/lbe_internal.cpp src/utils.cpp src/mods.cpp src/msquery.cpp include/common.h include/config.h include/keyval.h include/utils.h include/mods.h include/msquery.h include/slm_dsts.h include/dslim.h include/slmerr.h include/lbe.h
 
-LIBS = -ldslim -lmstoolkitlite 
+LIBS = -ldslim -lmstoolkitlite -lstdc++ -lc
 LIBPATHS = -L$(SRC) -L$(MSTOOLKIT)
 EXECUTEABLE = LoadBalancer.exe
 
+ifeq ($(PROFILE),YES)
+	LIBS += -lprofiler
+	CXXFLAGS += -D_PROFILE -g
+endif
+
 ifeq ($(OPENMP),YES)
-	CXXFLAGS += -fopenmp
+	CXXFLAGS += -fopenmp -D_GLIBCXX_PARALLEL
 	LNKFLAGS += -fopenmp
 endif
 
