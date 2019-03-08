@@ -165,8 +165,7 @@ typedef struct _SLMindex
     UINT       nPepChunks =    0; /* Number of pep chunks         */
     UINT       nModChunks =    0; /* Number of mod chunks         */
     UINT          nChunks =    0; /* Total Number of chunks       */
-    SLMchunk   *pepChunks = NULL; /* Chunks for normal peptides   */
-    SLMchunk   *modChunks = NULL; /* Chunks for modified peptides */
+    SLMchunk           pepChunks; /* Chunks for normal peptides   */
 } SLMindex;
 
 

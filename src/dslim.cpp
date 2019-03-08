@@ -27,7 +27,6 @@
 
 /* Enternal Variables */
 extern ULONGLONG    pepCount;
-extern ULONGLONG  totalCount;
 extern PepSeqs        seqPep;
 
 /* Global Variables */
@@ -40,9 +39,9 @@ varEntry    *modEntries; /* SLM Mods Index    */
 #endif /* VMODS */
 
 /* Global Variables */
-UINT chunksize = CHUNKSIZE;
+UINT     chunksize = 0;
 UINT lastchunksize = 0;
-UINT nchunks   = 0;
+UINT     nchunks   = 1;
 
 
 /* FUNCTION: DSLIM_Construct
@@ -56,7 +55,7 @@ UINT nchunks   = 0;
  * OUTPUT:
  * @status: status of execution
  */
-STATUS DSLIM_Construct(UINT threads, SLM_vMods *modInfo)
+STATUS DSLIM_Construct(UINT myid, SLM_vMods *modInfo)
 {
     STATUS status = SLM_SUCCESS;
 
@@ -67,9 +66,6 @@ STATUS DSLIM_Construct(UINT threads, SLM_vMods *modInfo)
     LBE_UNUSED_PARAM(modInfo);
 #endif /* VMODS */
 
-#ifndef _OPENMP
-    threads = 1;
-#endif /* _OPENMP */
 
     if (modInfo == NULL)
     {
@@ -90,40 +86,31 @@ STATUS DSLIM_Construct(UINT threads, SLM_vMods *modInfo)
     if (status == SLM_SUCCESS)
     {
         /* Allocate memory for SLMChunks and SPI*/
-        status = DSLIM_AllocateMemory(chunksize, nchunks);
+        status = DSLIM_AllocateMemory(chunksize, 1);
 
         /* Construct DSLIM.iA */
         if (status == SLM_SUCCESS)
         {
             /* Distributed SLM Ions Array construction */
-            for (UINT chno = 0; chno < nchunks && status == SLM_SUCCESS; chno++)
-            {
                 /* Construct each DSLIM chunk in Parallel */
-                status = DSLIM_ConstructChunk(threads, chno);
+                status = DSLIM_ConstructChunk(1, myid);
 
                 /* Apply SLM-Transform on the chunk */
                 if (status == SLM_SUCCESS)
                 {
-                    status = DSLIM_SLMTransform(threads, chno);
+                    status = DSLIM_SLMTransform(1, myid);
                 }
-            }
         }
     }
 
     if (status == SLM_SUCCESS)
     {
         /* Construct DSLIM.bA */
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static, 1)
-#endif /* _OPENMP */
-        for (UINT chunk_number = 0; chunk_number < nchunks; chunk_number++)
-        {
-            UINT *bAPtr = dslim.pepChunks[chunk_number].bA;
+
+            UINT *bAPtr = dslim.pepChunks.bA;
 
             /* Get size of the chunk */
-            UINT csize = ((chunk_number == nchunks - 1) && (nchunks > 1)) ?
-                            lastchunksize                                 :
-                            chunksize;
+            UINT csize = chunksize;
 
             UINT count = bAPtr[0];
 
@@ -152,7 +139,6 @@ STATUS DSLIM_Construct(UINT threads, SLM_vMods *modInfo)
             {
                 status = ERR_INVLD_SIZE;
             }
-        }
     }
 
     /* Remove the temporary SpecArray (SA) */
@@ -178,46 +164,29 @@ STATUS DSLIM_AllocateMemory(UINT chsize, UINT Chunks)
 {
     STATUS status = SLM_SUCCESS;
 
-    /* Initialize DSLIM pepChunks */
-    dslim.pepChunks = new SLMchunk[Chunks];
+    dslim.nChunks = nchunks;
 
-    if (dslim.pepChunks != NULL)
+    /* Initialize direct hashing bA */
+    dslim.pepChunks.bA = new UINT[(MAX_MASS * SCALE) + 1];
+
+    if (dslim.pepChunks.bA != NULL)
     {
-        dslim.nChunks = Chunks;
+        /* Calculate the iA chunk size */
+        INT size = chsize;
 
-        /* Counter for Chunk size construction */
-        INT totalpeps = (INT) totalCount;
+        /* Total Number of Ions = peps * #ion series * ions/ion series */
+        dslim.pepChunks.iA = new UINT[(size * iSERIES * F)];
 
-        /* At every loop, check for remaining peps and status */
-        for (UINT i = 0; i < Chunks && totalpeps > 0 && status == SLM_SUCCESS; i++)
+        if (dslim.pepChunks.iA == NULL)
         {
-            /* Initialize direct hashing bA */
-            dslim.pepChunks[i].bA = new UINT[(MAX_MASS * SCALE) + 1];
-
-            if (dslim.pepChunks[i].bA != NULL)
-            {
-                /* Calculate the iA chunk size */
-                INT size = ((INT)(totalpeps - chsize)) > 0 ? chsize : totalpeps;
-                totalpeps -= size; // Update the counter
-
-                /* Total Number of Ions = peps * #ion series * ions/ion series */
-                dslim.pepChunks[i].iA = new UINT[(size * iSERIES * F)];
-
-                if (dslim.pepChunks[i].iA == NULL)
-                {
-                    status = ERR_INVLD_MEMORY;
-                }
-            }
-            else
-            {
-                status = ERR_INVLD_MEMORY;
-            }
+            status = ERR_INVLD_MEMORY;
         }
     }
     else
     {
         status = ERR_INVLD_MEMORY;
     }
+
 
     /* Allocate memory for SPI and Spectra Array */
     if (status == SLM_SUCCESS)
@@ -250,43 +219,9 @@ STATUS DSLIM_ConstructChunk(UINT threads, UINT chunk_number)
     /* Check if this chunk is the last chunk */
     BOOL lastChunk = (chunk_number == (nchunks - 1))? true: false;
 
-#ifdef _OPENMP
-    /* SA ptr for each thread */
-    UINT *SAPtrs[threads] = {NULL};
-
-    /* Temporary Array needed for Theoretical Spectra */
-    UINT *Spectra = new UINT[threads * MAX_SEQ_LEN * iSERIES * MAXz];
-
-    UINT *BAPtrs[threads] = {NULL};
-    UINT *bA = new UINT[threads * SCALE * MAX_MASS];
-
-    /* Initialize SAPtrs for each thread */
-    if (Spectra != NULL && bA != NULL)
-    {
-        for (UINT i = 0; i < threads; i++)
-        {
-            SAPtrs[i] = Spectra + (i * MAX_SEQ_LEN * iSERIES * MAXz);
-            BAPtrs[i] = bA + (i * SCALE * MAX_MASS);
-        }
-
-        /* Clear the bAPtrs and SAPtrs */
-#pragma omp parallel for num_threads(threads) schedule (static)
-        for (UINT i = 0; i < threads; i++)
-        {
-            std::memset(BAPtrs[i], 0x0, (SCALE * MAX_MASS * sizeof(UINT)));
-            std::memset(SAPtrs[i], 0x0, (MAX_SEQ_LEN * iSERIES * MAXz * sizeof(UINT)));
-        }
-    }
-    else
-    {
-        status = ERR_INVLD_MEMORY;
-    }
-#else
-
     UINT SAPtr[(MAX_SEQ_LEN * iSERIES * MAXz)] = {};
-    std::memset(dslim.pepChunks[chunk_number].bA, 0x0, (SCALE * MAX_MASS * sizeof(UINT) + 1));
+    std::memset(dslim.pepChunks.bA, 0x0, (((SCALE * MAX_MASS) + 1) * sizeof(UINT)));
 
-#endif /* _OPENMP */
 
     if (status == SLM_SUCCESS)
     {
@@ -299,21 +234,12 @@ STATUS DSLIM_ConstructChunk(UINT threads, UINT chunk_number)
             interval = lastchunksize;
         }
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static, 1) /* schedule(dynamic, 1) */
-#endif /* _OPENMP */
         for (UINT k = start_idx; k < (start_idx + interval); k++)
         {
             /* Filling point */
             UINT nfilled = (k - start_idx) * iSERIES * F;
-
-#ifdef _OPENMP
-            UINT *Spec = SAPtrs[omp_get_thread_num()];
-            UINT *bAPtr  = BAPtrs[omp_get_thread_num()];
-#else
             UINT *Spec = SAPtr;
-            UINT *bAPtr = dslim.pepChunks[chunk_number].bA;
-#endif /* OPENMP */
+            UINT *bAPtr = dslim.pepChunks.bA;
 
             /* Extract peptide Information */
             FLOAT pepMass = 0.0;
@@ -410,26 +336,7 @@ STATUS DSLIM_ConstructChunk(UINT threads, UINT chunk_number)
             }
         }
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule (static)
-        for (UINT i = 0; i < (MAX_MASS * SCALE); i++)
-        {
-            /* Initialize to zero */
-            dslim.pepChunks[chunk_number].bA[i] = 0;
-
-            for (UINT j = 0; j < threads; j++)
-            {
-                dslim.pepChunks[chunk_number].bA[i] += BAPtrs[j][i];
-            }
-        }
-#endif /* _OPENMP */
-
     }
-
-#ifdef _OPENMP
-    delete[] bA;
-    bA = NULL;
-#endif /* OPENMP */
 
     return status;
 }
@@ -451,41 +358,23 @@ STATUS DSLIM_SLMTransform(UINT threads, UINT chunk_number)
     STATUS status = SLM_SUCCESS;
 
     /* Check if this chunk is the last chunk */
-    UINT size = ((chunk_number == nchunks - 1) && (nchunks > 1))?
-                 lastchunksize                                  :
-                 chunksize;
+    UINT size = chunksize;
 
-    UINT *iAPtr = dslim.pepChunks[chunk_number].iA;
+    UINT *iAPtr = dslim.pepChunks.iA;
     UINT iAsize = size * iSERIES * F;
 
-#ifdef VALIDATE_SLM
-    UINT *integ = new UINT[size * iSERIES * F];
-    std::memcpy(integ, SpecArr, sizeof(UINT) * iAsize);
-#endif /* VALIDATE_SLM */
-
     /* Construct DSLIM.iA */
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static)
-#endif /* _OPENMP */
     for (UINT k = 0; k < iAsize; k++)
     {
         iAPtr[k] = k;
     }
 
-#ifdef _OPENMP
-    /* Parallel Key Value Sort */
-    KeyVal_Parallel<UINT>(SpecArr, iAPtr, iAsize, threads);
-#else
-    KeyVal_Serial<UINT>(SpecArr, iAPtr, iAsize);
-#endif /* _OPENMP */
+    KeyVal_Serial<INT>((INT *)SpecArr, (INT *)iAPtr, iAsize);
 
     /* Check integrity of SLM-Transform */
 #ifdef VALIDATE_SLM
     BOOL integrity = true;
 
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static)
-#endif /* _OPENMP */
     for (UINT k = 1; k < iAsize; k++)
     {
         if (integ[iAPtr[k]] < integ[iAPtr[k - 1]])
@@ -519,55 +408,22 @@ STATUS DSLIM_InitializeSC(UINT threads)
 {
     STATUS status = SLM_SUCCESS;
 
-    UINT chunk_number = 0;
-
-#ifndef _OPENMP
     threads = 1;
-#endif /* OPENMP */
 
-    /* Loop through all the chunks */
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static)
-#endif /* _OPENMP */
-    for (chunk_number = 0; chunk_number < nchunks; chunk_number++)
+    /* Check if this chunk is the last chunk */
+    UINT size = chunksize;
+
+    /* Allocate memory for scorecard */
+    UCHAR *SC = new UCHAR[size];
+    dslim.pepChunks.sC = SC;
+
+    if (SC != NULL)
     {
-        /* Check if this chunk is the last chunk */
-        UINT size = ((chunk_number == nchunks - 1) && (nchunks > 1))? lastchunksize : chunksize;
-#ifdef FUTURE
-        /* Calculate the size of bits */
-        UINT bitsize = (size/BYTE) + 1;
-#endif /* FUTURE */
-
-        /* Allocate memory for scorecard */
-        UCHAR *SC = new UCHAR[size];
-        dslim.pepChunks[chunk_number].sC = SC;
-
-        if (SC != NULL)
-        {
-            std::memset(SC, 0x0, size);
-#ifndef FUTURE
-#else
-            /* Allocate memory for bitmask */
-            UCHAR *bits = new UCHAR[bitsize];
-
-            if (bits != NULL)
-            {
-                /* Set the bitmask to zero */
-                std::memset(bits, 0x0, bitsize);
-
-                /* Set the pointers */
-                dslim.pepChunks[chunk_number].bits = bits;
-            }
-            else
-            {
-                status = ERR_INVLD_MEMORY;
-            }
-#endif /* FUTURE */
-        }
-        else
-        {
-            status = ERR_INVLD_MEMORY;
-        }
+        std::memset(SC, 0x0, size);
+    }
+    else
+    {
+        status = ERR_INVLD_MEMORY;
     }
 
     return status;
@@ -592,11 +448,6 @@ STATUS DSLIM_Analyze(UINT threads, DOUBLE &avg, DOUBLE &std)
     DOUBLE sum_std = 0;
     ULONGLONG truecount = 1;
 
-#ifdef _OPENMP
-    DOUBLE stds[threads] = {};
-    ULONGLONG count[threads] = {};
-#endif /* _OPENMP */
-
     if (nchunks <= 1)
     {
         status = ERR_INVLD_SIZE;
@@ -611,42 +462,26 @@ STATUS DSLIM_Analyze(UINT threads, DOUBLE &avg, DOUBLE &std)
         arr[0] = 0x0;
 
         /* Compute the means */
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static)
-#endif /* _OPENMP */
+
         for (UINT i = 1; i < (MAX_MASS * SCALE) -1; i++)
         {
             arr[i] = 0x0;
 
             for (UINT j = 0; j < nchunks; j++)
             {
-                arr[i] += (dslim.pepChunks[j].bA[i+1] - dslim.pepChunks[j].bA[i]);
+                arr[i] += (dslim.pepChunks.bA[i+1] - dslim.pepChunks.bA[i]);
             }
 
             arr[i] /= nchunks;
 
             if (arr[i] > 0)
             {
-#ifdef _OPENMP
-                count[omp_get_thread_num()]++;
-#else
                 truecount++;
-#endif /* _OPENMP */
             }
         }
 
-        /* Gather the counts to truecount */
-#ifdef _OPENMP
-        for (UINT kk = 0; kk < threads; kk++)
-        {
-            truecount += count[kk];
-        }
-#endif /* OPENMP */
 
         /* Compute the Standard Deviations */
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static)
-#endif /* _OPENMP */
         for (UINT i = 1; i < (MAX_MASS * SCALE) - 1; i++)
         {
             DOUBLE mean = arr[i];
@@ -656,10 +491,10 @@ STATUS DSLIM_Analyze(UINT threads, DOUBLE &avg, DOUBLE &std)
             {
                 for (UINT j = 0; j < nchunks; j++)
                 {
-                    arr[i] += (((DOUBLE) dslim.pepChunks[j].bA[i+1]
-                            - (DOUBLE) dslim.pepChunks[j].bA[i] - mean)
-                            * ((DOUBLE) dslim.pepChunks[j].bA[i+1]
-                            - (DOUBLE) dslim.pepChunks[j].bA[i] - mean));
+                    arr[i] += (((DOUBLE) dslim.pepChunks.bA[i+1]
+                            - (DOUBLE) dslim.pepChunks.bA[i] - mean)
+                            * ((DOUBLE) dslim.pepChunks.bA[i+1]
+                            - (DOUBLE) dslim.pepChunks.bA[i] - mean));
                 }
 
                 arr[i] = sqrt(arr[i] / nchunks);
@@ -667,26 +502,10 @@ STATUS DSLIM_Analyze(UINT threads, DOUBLE &avg, DOUBLE &std)
         }
 
         /* Compute mean of stdevs */
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static)
-#endif /* _OPENMP */
         for (UINT i = 0; i < MAX_MASS * SCALE; i++)
         {
-#ifdef _OPENMP
-            stds[omp_get_thread_num()] += arr[i];
-#else
             sum_std += arr[i];
-#endif /* _OPENMP */
         }
-
-/* Gather the counts to truecount */
-#ifdef _OPENMP
-        for (UINT kk = 0; kk < threads; kk++)
-        {
-            sum_std += stds[kk];
-            stds[kk] = 0;
-        }
-#endif /* OPENMP */
 
         sum_std /= truecount;
         avg = sum_std;
@@ -694,26 +513,12 @@ STATUS DSLIM_Analyze(UINT threads, DOUBLE &avg, DOUBLE &std)
         sum_std = 0;
 
         /* Compute stdev of stdevs */
-#ifdef _OPENMP
-#pragma omp parallel for num_threads(threads) schedule(static)
-#endif /* _OPENMP */
         for (UINT i = 0; i < MAX_MASS * SCALE; i++)
         {
-#ifdef _OPENMP
-            stds[omp_get_thread_num()] += ((arr[i] - avg) * (arr[i] - avg));
-#else
             sum_std += ((arr[i] - avg) * (arr[i] - avg));
-#endif /* _OPENMP */
         }
 
         /* Gather the counts to truecount */
-#ifdef _OPENMP
-        for (UINT kk = 0; kk < threads; kk++)
-        {
-            sum_std += stds[kk];
-        }
-#endif /* OPENMP */
-
         sum_std /= truecount;
         sum_std = std::sqrt(sum_std);
 
@@ -736,41 +541,35 @@ STATUS DSLIM_Analyze(UINT threads, DOUBLE &avg, DOUBLE &std)
  * OUTPUT:
  * @status: Status of execution
  */
-STATUS DSLIM_Deinitialize(VOID)
+STATUS DSLIM_Deinitialize()
 {
     /* Deallocate all the DSLIM chunks */
-    for (UINT chno = 0; chno < dslim.nChunks; chno++)
+
+    SLMchunk curr_chunk = dslim.pepChunks;
+
+    if (curr_chunk.bA != NULL)
     {
-        SLMchunk curr_chunk = dslim.pepChunks[chno];
-
-        if (curr_chunk.bA != NULL)
-        {
-            delete[] curr_chunk.bA;
-            curr_chunk.bA = NULL;
-        }
-
-        if (curr_chunk.iA != NULL)
-        {
-            delete[] curr_chunk.iA;
-            curr_chunk.iA = NULL;
-        }
-
-        if (curr_chunk.sC != NULL)
-        {
-            delete[] curr_chunk.sC;
-            curr_chunk.sC = NULL;
-        }
+        delete[] curr_chunk.bA;
+        curr_chunk.bA = NULL;
     }
 
-    if (dslim.pepChunks != NULL)
+    if (curr_chunk.iA != NULL)
     {
-        delete[] dslim.pepChunks;
+        delete[] curr_chunk.iA;
+        curr_chunk.iA = NULL;
     }
+
+    if (curr_chunk.sC != NULL)
+    {
+        delete[] curr_chunk.sC;
+        curr_chunk.sC = NULL;
+    }
+
 
     /* Reset Global Variables */
     nchunks = 0;
-    dslim.modChunks = 0;
-    dslim.pepChunks = 0;
+    dslim.nModChunks = 0;
+    dslim.nPepChunks = 0;
     dslim.nChunks = 0;
     chunksize = 0;
     lastchunksize = 0;

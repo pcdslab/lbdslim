@@ -325,22 +325,6 @@ LONGLONG MODS_ModCounter(UINT threads, STRING conditions)
     (VOID) MODS_GenCombinations();
 
     /* Parallel modcounter */
-#ifdef _OPENMP
-    LONGLONG t[threads];
-    std::memset(t, 0x0, threads * sizeof(LONGLONG));
-
-#pragma omp parallel for num_threads(threads) schedule(static, Seqs.size()/50)
-    for (UINT i = 0; i < Seqs.size(); i++)
-    {
-        t[omp_get_thread_num()] += count(Seqs.at(i), conditions) - 1;
-    }
-
-    /* Accumulate the counts */
-    for (UINT th = 0; th < threads; th++)
-    {
-        cumulative += t[th];
-    }
-#else
 
     LBE_UNUSED_PARAM(threads);
 
@@ -348,7 +332,6 @@ LONGLONG MODS_ModCounter(UINT threads, STRING conditions)
     {
         cumulative += count(Seqs.at(i), conditions) - 1;
     }
-#endif /* _OPENMP */
 
 #endif /* VMODS */
 

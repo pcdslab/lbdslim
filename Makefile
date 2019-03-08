@@ -1,8 +1,16 @@
 BUILD_MODE = RELEASE
-OPENMP = YES
+OPENMP = NO
 JOBS=1
 CXXFLAGS = -Wall -fmessage-length=0 -std=c++11
 LNKFLAGS = 
+
+# Change CXX to MPIC++
+ifneq ($(OS),Windows_NT)
+	CXX:= mpic++
+endif
+
+# Needs gperftools to be installed and configured before use
+PROFILE = NO
 
 PROJECT_ROOT = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 SRC = $(PROJECT_ROOT)/src
@@ -14,8 +22,13 @@ LIBS = -ldslim -lmstoolkitlite
 LIBPATHS = -L$(SRC) -L$(MSTOOLKIT)
 EXECUTEABLE = LoadBalancer.exe
 
+ifeq ($(PROFILE),YES)
+	LIBS += -lprofiler
+	CXXFLAGS += -D_PROFILE -g
+endif
+
 ifeq ($(OPENMP),YES)
-	CXXFLAGS += -fopenmp
+	CXXFLAGS += -fopenmp -D_GLIBCXX_PARALLEL
 	LNKFLAGS += -fopenmp
 endif
 

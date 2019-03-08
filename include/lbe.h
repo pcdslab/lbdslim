@@ -74,7 +74,7 @@ STATUS LBE_Deinitialize(VOID);
  * OUTPUT:
  * @status: Status of execution
  */
-STATUS LBE_Distribute(UINT threads, DistPolicy policy, UINT& slm_chunks);
+STATUS LBE_Distribute(UINT myid, DistPolicy policy, UINT slm_chunks, ULONGLONG lseed);
 
 /*
  * FUNCTION: LBE_RevDist

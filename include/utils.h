@@ -22,7 +22,7 @@
 #define INCLUDE_UTILS_H_
 
 #include <omp.h>
-#include <parallel/algorithm>
+#include <algorithm>
 #include <bits/stdc++.h>
 #include <functional>
 #include <cstdlib>
@@ -58,31 +58,6 @@ void   UTILS_Sort(Num *data, UINT size, bool descending = false)
     else
     {
         std::sort(data, data+size, std::greater<Num>());
-    }
-}
-
-/*
- * FUNCTION: UTILS_ParallelSort
- *
- * DESCRIPTION: Parallel Sort an array
- *
- * INPUT:
- * @data      : Array to sort
- * @size      : Size of array
- * @descending: Sort in descending order?
- *
- * OUTPUT: none
- */
-template <class Num>
-void   UTILS_ParallelSort(Num *data, UINT size, bool descending = false)
-{
-    if (descending == false)
-    {
-        __gnu_parallel::sort(data, data + size);
-    }
-    else
-    {
-        __gnu_parallel::sort(data, data+size, std::greater<Num>());
     }
 }
 

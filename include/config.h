@@ -24,7 +24,7 @@
 /* Contains MACROS that configure SLM Index build */
 
 /* Manually switch _OPENMP */
-//#undef _OPENMP
+#undef _OPENMP
 
 /* Define if OS == WINDOWS*/
 #define WINDOWS
