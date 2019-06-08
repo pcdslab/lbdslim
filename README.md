@@ -1,3 +1,6 @@
+# Hybrid MPI/OpenMP version coming soon.
+
+
 # Load Balancing Algorithm for Distributed SLIM-Transform (DSLIM)
 ## Authors
 Muhammad Haseeb and Fahad Saeed
